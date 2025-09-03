@@ -1,0 +1,4 @@
+[submodule "psock"]
+	path = psock
+	url = https://polaris3d.co:32326/research/psock.git
+	branch = feature/delivery

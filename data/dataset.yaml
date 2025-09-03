@@ -1,0 +1,8 @@
+# YOLO11 Dataset Configuration - Clean
+path: data  # dataset root dir
+train: images  # train images (relative to 'path')
+val: images    # val images (relative to 'path')
+
+# Classes
+nc: 12  # number of classes
+names: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'up', 'down']  # class names
