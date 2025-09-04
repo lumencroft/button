@@ -17,7 +17,7 @@ import time
 from coordinate_calculator import CoordinateCalculator
 
 class RealSenseYOLO3D:
-    def __init__(self, model_path="runs/train/clean_training/weights/best.pt"):
+    def __init__(self, model_path=""):
         """RealSense + YOLO + 3D 좌표 계산 클래스 초기화"""
         
         # YOLO 모델 로드
@@ -186,6 +186,8 @@ class RealSenseYOLO3D:
                             # Bounding box 좌표
                             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
                             confidence = box.conf[0].cpu().numpy()
+                            if confidence < 0.5:
+                                continue
                             class_id = int(box.cls[0].cpu().numpy())
                             
                             # 클래스 이름 가져오기
@@ -316,7 +318,7 @@ def main():
     print("=" * 50)
     
     # 모델 경로 확인
-    model_path = "runs/train/clean_training3/weights/best.pt"
+    model_path = "runs/train/clean_training/weights/best.pt"
     
     try:
         app = RealSenseYOLO3D(model_path)
