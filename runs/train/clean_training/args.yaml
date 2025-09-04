@@ -1,6 +1,6 @@
 task: detect
 mode: train
-model: yolo11n.pt
+model: yolo12m.pt
 data: data/dataset.yaml
 epochs: 100
 time: null
@@ -41,7 +41,7 @@ iou: 0.7
 max_det: 300
 half: false
 dnn: false
-plots: true
+plots: false
 source: null
 vid_stride: 1
 stream_buffer: false

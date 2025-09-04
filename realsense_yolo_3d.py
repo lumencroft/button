@@ -17,7 +17,7 @@ import time
 from coordinate_calculator import CoordinateCalculator
 
 class RealSenseYOLO3D:
-    def __init__(self, model_path="runs/train/clean_training3/weights/best.pt"):
+    def __init__(self, model_path="runs/train/clean_training/weights/best.pt"):
         """RealSense + YOLO + 3D 좌표 계산 클래스 초기화"""
         
         # YOLO 모델 로드
