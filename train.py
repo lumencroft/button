@@ -48,11 +48,11 @@ def main():
         # Output control
         save=True,
         save_period=-1, # Saves only best.pt
-        plots=False,    # Disables plot generation (e.g., results.png, confusion_matrix.png)
         
         # Other settings
         patience=50,
         verbose=True,
+        freeze=10,
     )
     
     print("🎉 Training complete!")
