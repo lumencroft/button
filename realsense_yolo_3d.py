@@ -47,12 +47,12 @@ class RealSenseYOLO3D:
         # UDP transmission setup
         self.udp_socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.target_ip = "192.168.1.131"
-        self.target_port = 5005
+        self.target_port = 5003
         
         # UDP reception setup (receive ready signal)
         self.udp_receiver = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.receiver_ip = "0.0.0.0"  # Receive from all interfaces
-        self.receiver_port = 5006
+        self.receiver_port = 5003
         self.udp_receiver.bind((self.receiver_ip, self.receiver_port))
         
         # BUTTON_POSITION protocol setup (referencing psock structure)
@@ -61,10 +61,11 @@ class RealSenseYOLO3D:
         self.length = 16  # Changed to 16 as per specification
         
         # State management
-        self.state = "waiting_ready"  # waiting_ready, looking_up, looking_7, completed
+        self.state = "waiting_ready"  # waiting_ready, looking_up, looking_7
         self.ready_signal_received = False
         self.up_button_sent = False
         self.button_7_sent = False
+        self.current_sequence = "up"  # "up" or "7" - which button to look for next
         
         # Timer for button detection transmission
         self.last_send_time = 0
@@ -133,9 +134,16 @@ class RealSenseYOLO3D:
                     if start_byte == 'POLA' and message_id == 103 and ready == 1:
                         print(f"🎯 Ready signal received! (from {addr[0]}:{addr[1]})")
                         self.ready_signal_received = True
-                        self.state = "looking_up"
-                        self.up_button_sent = False
-                        self.button_7_sent = False
+                        
+                        # Determine which button to look for based on current sequence
+                        if self.current_sequence == "up":
+                            self.state = "looking_up"
+                            self.up_button_sent = False
+                            print("🎯 Looking for UP button...")
+                        elif self.current_sequence == "7":
+                            self.state = "looking_7"
+                            self.button_7_sent = False
+                            print("🎯 Looking for 7 button...")
                         
             except Exception as e:
                 if self.running:  # Only print error if not normal termination
@@ -187,8 +195,8 @@ class RealSenseYOLO3D:
         )
         
         print("\n🎥 RealSense + YOLO + 3D coordinate calculation started!")
-        print("🎯 Waiting for ready signal... (receiving on UDP port 5006)")
-        print("🎯 When ready signal received: UP button → 7 button detection sequence")
+        print("🎯 Waiting for ready signal... (receiving on UDP port 5003)")
+        print("🎯 Sequence: Ready signal → UP button → Ready signal → 7 button → Ready signal → UP button...")
         print(f"📡 Transmission target: {self.target_ip}:{self.target_port}")
         print("\n⌨️  Keyboard input:")
         print("   'c' key: distortion correction toggle")
@@ -288,12 +296,14 @@ class RealSenseYOLO3D:
                                         
                                         if self.state == "looking_up":
                                             self.up_button_sent = True
-                                            self.state = "looking_7"
-                                            print("🎯 UP button transmission completed! Now looking for 7 button...")
+                                            self.state = "waiting_ready"
+                                            self.current_sequence = "7"  # Next time ready signal comes, look for 7 button
+                                            print("🎯 UP button transmission completed! Waiting for next ready signal to look for 7 button...")
                                         elif self.state == "looking_7":
                                             self.button_7_sent = True
-                                            self.state = "completed"
-                                            print("🎯 7 button transmission completed! All tasks completed!")
+                                            self.state = "waiting_ready"
+                                            self.current_sequence = "up"  # Next time ready signal comes, look for up button
+                                            print("🎯 7 button transmission completed! Waiting for next ready signal to look for UP button...")
                             else:
                                 text = f"{class_name}: {confidence:.2f} (No depth)"
                                 cv2.putText(annotated_image, text, (x1, y1-10), 
@@ -306,7 +316,8 @@ class RealSenseYOLO3D:
                 
                 # Display current state information on screen
                 if self.state == "waiting_ready":
-                    status_info = "State: Waiting for ready signal..."
+                    next_button = "UP" if self.current_sequence == "up" else "7"
+                    status_info = f"State: Waiting for ready signal... (Next: {next_button} button)"
                     color = (0, 255, 255)  # Yellow
                 elif self.state == "looking_up":
                     status_info = "State: Looking for UP button..."
@@ -314,9 +325,6 @@ class RealSenseYOLO3D:
                 elif self.state == "looking_7":
                     status_info = "State: Looking for 7 button..."
                     color = (255, 0, 0)    # Blue
-                elif self.state == "completed":
-                    status_info = "State: All tasks completed!"
-                    color = (0, 255, 0)    # Green
                 else:
                     status_info = f"State: {self.state}"
                     color = (255, 255, 255)  # White
@@ -361,7 +369,8 @@ class RealSenseYOLO3D:
                     self.state = "waiting_ready"
                     self.up_button_sent = False
                     self.button_7_sent = False
-                    print(f"\n🔄 State reset: Waiting for ready signal...")
+                    self.current_sequence = "up"  # Reset to start with UP button
+                    print(f"\n🔄 State reset: Waiting for ready signal... (Next: UP button)")
                     
         except KeyboardInterrupt:
             print("\nInterrupted by user.")
