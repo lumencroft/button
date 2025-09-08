@@ -207,6 +207,8 @@ class RealSenseYOLO3D:
         print("\n⌨️  Keyboard input:")
         print("   'c' key: distortion correction toggle")
         print("   'm' key: 3D calculation matrix toggle (Color/Depth)")
+        print("   '7' key: switch to 7 button detection")
+        print("   'u' key: switch to UP button detection")
         print("   'r' key: reset state")
         print("   ESC key: exit")
         print("-" * 50)
@@ -371,6 +373,16 @@ class RealSenseYOLO3D:
                     self.coord_calculator.use_color_matrix_for_3d = not self.coord_calculator.use_color_matrix_for_3d
                     status = "Color" if self.coord_calculator.use_color_matrix_for_3d else "Depth"
                     print(f"\n🎯 3D calculation matrix toggle: {status}")
+                elif key == ord('7'):  # '7' key: switch to 7 button detection
+                    self.state = "looking_7"
+                    self.button_7_sent = False
+                    self.current_sequence = "7"
+                    print(f"\n🎯 Switched to 7 button detection mode")
+                elif key == ord('u'):  # 'u' key: switch to UP button detection
+                    self.state = "looking_up"
+                    self.up_button_sent = False
+                    self.current_sequence = "up"
+                    print(f"\n🎯 Switched to UP button detection mode")
                 elif key == ord('r'):  # 'r' key: state reset
                     self.state = "waiting_ready"
                     self.up_button_sent = False
