@@ -59,7 +59,7 @@ class RealSenseYOLO3D:
         # BUTTON_POSITION protocol setup (referencing psock structure)
         self.start_byte = 'POLA'
         self.message_id = 102  # BUTTON_POSITION
-        self.length = 16  # Changed to 16 as per specification
+        self.length = 32  # Correct length as per current specification
         
         # State management
         self.state = "waiting_ready"  # waiting_ready, looking_up, looking_7
@@ -162,17 +162,23 @@ class RealSenseYOLO3D:
             # Current time
             current_time = time.time()
             
-            # Create packet according to BUTTON_POSITION protocol (length changed to 16)
+            # Create packet according to BUTTON_POSITION protocol (length = 32)
             # Header: start_byte(4) + message_id(2) + length(2) = 8 bytes
-            # Payload: time(8) = 8 bytes
-            # Total: 16 bytes
+            # Payload: time(8) + button_pos[3](12) + tooltip_pos[3](12) = 32 bytes
+            # Total: 32 bytes
             
             message = struct.pack(
-                "<4s2Hd",  # Format: 4s(start_byte) + 2H(message_id, length) + d(time)
+                "<4s2Hd6f",  # Format: 4s(start_byte) + 2H(message_id, length) + d(time) + 6f(button_pos + tooltip_pos)
                 self.start_byte.encode(),  # start_byte: 'POLA'
                 self.message_id,           # message_id: 102
-                self.length,               # length: 16
-                current_time               # time: double
+                self.length,               # length: 32
+                current_time,              # time: double
+                float(x_3d),               # button_pos[0]: float
+                float(y_3d),               # button_pos[1]: float  
+                float(z_3d),               # button_pos[2]: float
+                float(x_3d),               # tooltip_pos[0]: float (same as button_pos for now)
+                float(y_3d),               # tooltip_pos[1]: float (same as button_pos for now)
+                float(z_3d)                # tooltip_pos[2]: float (same as button_pos for now)
             )
             
             # UDP transmission
