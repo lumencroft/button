@@ -164,18 +164,20 @@ class RealSenseYOLO3D:
             
             # Create packet according to BUTTON_POSITION protocol (total = 32 bytes)
             # Header: start_byte(4) + message_id(2) + length(2) = 8 bytes
-            # Payload: time(8) + button_pos[3](12) = 20 bytes
-            # Total: 32 bytes (header 8 + payload 20)
+            # Payload: time(8) + button_pos[3](12) + type(1) + reserved[3](3) = 24 bytes
+            # Total: 32 bytes (header 8 + payload 24)
             
             message = struct.pack(
-                "<4s2Hd3f",  # Format: 4s(start_byte) + 2H(message_id, length) + d(time) + 3f(button_pos) = 32 bytes
+                "<4s2Hd3fB3B",  # Format: 4s(start_byte) + 2H(message_id, length) + d(time) + 3f(button_pos) + B(type) + 3B(reserved) = 32 bytes
                 self.start_byte.encode(),  # start_byte: 'POLA'
                 self.message_id,           # message_id: 102
                 32,                        # length: 32 (fixed)
                 current_time,              # time: double
                 float(x_3d),               # button_pos[0]: float
                 float(y_3d),               # button_pos[1]: float  
-                float(z_3d)                # button_pos[2]: float
+                float(z_3d),               # button_pos[2]: float
+                1,                         # type: 1 (camera coordinate)
+                0, 0, 0                    # reserved[3]: 0, 0, 0
             )
             
             # UDP transmission
