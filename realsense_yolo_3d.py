@@ -47,7 +47,7 @@ class RealSenseYOLO3D:
         # UDP transmission setup
         self.udp_socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.target_ip = "192.168.1.131"
-        self.target_port = 5004  # Use different port for transmission
+        self.target_port = 5003  # Use same port for transmission
         
         # UDP reception setup (receive ready signal)
         self.udp_receiver = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
