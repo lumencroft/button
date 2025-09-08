@@ -318,7 +318,7 @@ def main():
     print("=" * 50)
     
     # 모델 경로 확인
-    model_path = "runs/train/clean_training/weights/best.pt"
+    model_path = "runs/train/clean_training2/weights/best.pt"
     
     try:
         app = RealSenseYOLO3D(model_path)
