@@ -68,6 +68,12 @@ class RealSenseYOLO3D:
         self.button_7_sent = False
         self.current_sequence = "up"  # "up" or "7" - which button to look for next
         
+        # Frame collection for averaging
+        self.frame_collection_mode = False
+        self.collected_frames = []  # Store 5 frames of 3D coordinates
+        self.target_frames = 5  # Collect 5 frames
+        self.median_frames = 3  # Use median 3 frames for averaging
+        
         # Timer for button detection transmission
         self.last_send_time = 0
         self.send_interval = 1.0  # Send every 1 second
@@ -136,15 +142,23 @@ class RealSenseYOLO3D:
                         print(f"🎯 Ready signal received! (from {addr[0]}:{addr[1]})")
                         self.ready_signal_received = True
                         
+                        # Wait 0.5 seconds before starting frame collection
+                        print("⏳ Waiting 0.5 seconds before starting frame collection...")
+                        time.sleep(0.5)
+                        
+                        # Start frame collection mode
+                        self.frame_collection_mode = True
+                        self.collected_frames = []
+                        
                         # Determine which button to look for based on current sequence
                         if self.current_sequence == "up":
                             self.state = "looking_up"
                             self.up_button_sent = False
-                            print("🎯 Looking for UP button...")
+                            print("🎯 Collecting 5 frames for UP button...")
                         elif self.current_sequence == "7":
                             self.state = "looking_7"
                             self.button_7_sent = False
-                            print("🎯 Looking for 7 button...")
+                            print("🎯 Collecting 5 frames for 7 button...")
                         
             except Exception as e:
                 if self.running:  # Only print error if not normal termination
@@ -155,6 +169,37 @@ class RealSenseYOLO3D:
         """Start UDP reception thread"""
         self.udp_thread = threading.Thread(target=self.udp_receiver_thread, daemon=True)
         self.udp_thread.start()
+    
+    def calculate_averaged_position(self, positions):
+        """Calculate averaged position from collected frames using median 3 frames"""
+        if len(positions) < self.median_frames:
+            return None
+        
+        # Sort positions by each coordinate
+        x_coords = sorted([pos[0] for pos in positions])
+        y_coords = sorted([pos[1] for pos in positions])
+        z_coords = sorted([pos[2] for pos in positions])
+        
+        # Get median values
+        median_x = x_coords[len(x_coords) // 2]
+        median_y = y_coords[len(y_coords) // 2]
+        median_z = z_coords[len(z_coords) // 2]
+        
+        # Calculate average of median 3 frames
+        start_idx = len(positions) // 2 - 1
+        end_idx = start_idx + self.median_frames
+        
+        if end_idx > len(positions):
+            start_idx = len(positions) - self.median_frames
+            end_idx = len(positions)
+        
+        median_positions = positions[start_idx:end_idx]
+        
+        avg_x = sum(pos[0] for pos in median_positions) / len(median_positions)
+        avg_y = sum(pos[1] for pos in median_positions) / len(median_positions)
+        avg_z = sum(pos[2] for pos in median_positions) / len(median_positions)
+        
+        return avg_x, avg_y, avg_z
     
     def send_button_position(self, x_3d, y_3d, z_3d, button_type="up"):
         """Send button position via UDP"""
@@ -292,26 +337,43 @@ class RealSenseYOLO3D:
                                 # Draw circle at center point
                                 cv2.circle(annotated_image, (center_x, center_y), 3, (0, 0, 255), -1)
                                 
-                                # Send UDP when target button is detected
+                                # Handle frame collection for target button
                                 if (target_class_id is not None and class_id == target_class_id and 
+                                    self.frame_collection_mode and
                                     not (self.state == "looking_up" and self.up_button_sent) and
                                     not (self.state == "looking_7" and self.button_7_sent)):
                                     
-                                    current_time = time.time()
-                                    if current_time - self.last_send_time >= self.send_interval:
-                                        self.send_button_position(x_3d, y_3d, z_3d, target_class_name)
-                                        self.last_send_time = current_time
+                                    # Collect frame data
+                                    self.collected_frames.append((x_3d, y_3d, z_3d))
+                                    print(f"📊 Frame {len(self.collected_frames)}/{self.target_frames} collected: ({x_3d:.1f}, {y_3d:.1f}, {z_3d:.1f})mm")
+                                    
+                                    # Check if we have enough frames
+                                    if len(self.collected_frames) >= self.target_frames:
+                                        # Calculate averaged position
+                                        avg_pos = self.calculate_averaged_position(self.collected_frames)
                                         
-                                        if self.state == "looking_up":
-                                            self.up_button_sent = True
-                                            self.state = "waiting_ready"
-                                            self.current_sequence = "7"  # Next time ready signal comes, look for 7 button
-                                            print("🎯 UP button transmission completed! Waiting for next ready signal to look for 7 button...")
-                                        elif self.state == "looking_7":
-                                            self.button_7_sent = True
-                                            self.state = "waiting_ready"
-                                            self.current_sequence = "up"  # Next time ready signal comes, look for up button
-                                            print("🎯 7 button transmission completed! Waiting for next ready signal to look for UP button...")
+                                        if avg_pos is not None:
+                                            avg_x, avg_y, avg_z = avg_pos
+                                            print(f"📊 Averaged position from {len(self.collected_frames)} frames: ({avg_x:.1f}, {avg_y:.1f}, {avg_z:.1f})mm")
+                                            
+                                            # Send averaged position
+                                            self.send_button_position(avg_x, avg_y, avg_z, target_class_name)
+                                            
+                                            # Update state
+                                            if self.state == "looking_up":
+                                                self.up_button_sent = True
+                                                self.state = "waiting_ready"
+                                                self.current_sequence = "7"  # Next time ready signal comes, look for 7 button
+                                                print("🎯 UP button transmission completed! Waiting for next ready signal to look for 7 button...")
+                                            elif self.state == "looking_7":
+                                                self.button_7_sent = True
+                                                self.state = "waiting_ready"
+                                                self.current_sequence = "up"  # Next time ready signal comes, look for up button
+                                                print("🎯 7 button transmission completed! Waiting for next ready signal to look for UP button...")
+                                        
+                                        # Reset frame collection
+                                        self.frame_collection_mode = False
+                                        self.collected_frames = []
                             else:
                                 text = f"{class_name}: {confidence:.2f} (No depth)"
                                 cv2.putText(annotated_image, text, (x1, y1-10), 
@@ -328,10 +390,16 @@ class RealSenseYOLO3D:
                     status_info = f"State: Waiting for ready signal... (Next: {next_button} button)"
                     color = (0, 255, 255)  # Yellow
                 elif self.state == "looking_up":
-                    status_info = "State: Looking for UP button..."
+                    if self.frame_collection_mode:
+                        status_info = f"State: Collecting UP button frames... ({len(self.collected_frames)}/{self.target_frames})"
+                    else:
+                        status_info = "State: Looking for UP button..."
                     color = (0, 255, 0)    # Green
                 elif self.state == "looking_7":
-                    status_info = "State: Looking for 7 button..."
+                    if self.frame_collection_mode:
+                        status_info = f"State: Collecting 7 button frames... ({len(self.collected_frames)}/{self.target_frames})"
+                    else:
+                        status_info = "State: Looking for 7 button..."
                     color = (255, 0, 0)    # Blue
                 else:
                     status_info = f"State: {self.state}"
@@ -377,12 +445,16 @@ class RealSenseYOLO3D:
                     self.state = "looking_7"
                     self.button_7_sent = False
                     self.current_sequence = "7"
-                    print(f"\n🎯 Switched to 7 button detection mode")
+                    self.frame_collection_mode = True
+                    self.collected_frames = []
+                    print(f"\n🎯 Switched to 7 button detection mode (collecting 5 frames)")
                 elif key == ord('u'):  # 'u' key: switch to UP button detection
                     self.state = "looking_up"
                     self.up_button_sent = False
                     self.current_sequence = "up"
-                    print(f"\n🎯 Switched to UP button detection mode")
+                    self.frame_collection_mode = True
+                    self.collected_frames = []
+                    print(f"\n🎯 Switched to UP button detection mode (collecting 5 frames)")
                 elif key == ord('r'):  # 'r' key: state reset
                     self.state = "waiting_ready"
                     self.up_button_sent = False
