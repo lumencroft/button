@@ -14,7 +14,7 @@ def main():
     
     # Note: 'yolo11n.pt' is not a standard model. Assuming 'yolov8n.pt'.
     print("📥 Loading YOLOv8n pretrained model...")
-    model = YOLO('yolo12m.pt') 
+    model = YOLO('yolo11n.pt') 
     
     print("🎯 Starting training...")
     results = model.train(

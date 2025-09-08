@@ -230,7 +230,7 @@ class RealSenseYOLO3D:
                                 cv2.circle(annotated_image, (center_x, center_y), 3, (0, 0, 255), -1)
                                 
                                 # 타겟 버튼 감지 시 UDP 전송
-                                if class_id == self.target_class_id and confidence > 0.5:  # confidence 임계값 설정
+                                if class_id == self.target_class_id:  # confidence 임계값 설정
                                     target_detected_this_frame = True
                                     current_time = time.time()
                                     if current_time - self.last_send_time >= self.send_interval:
