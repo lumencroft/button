@@ -144,7 +144,7 @@ class RealSenseYOLO3D:
                         
                         # Wait 0.5 seconds before starting frame collection
                         print("⏳ Waiting 0.5 seconds before starting frame collection...")
-                        time.sleep(0.5)
+                        time.sleep(2)
                         
                         # Start frame collection mode
                         self.frame_collection_mode = True
