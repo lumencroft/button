@@ -47,12 +47,13 @@ class RealSenseYOLO3D:
         # UDP transmission setup
         self.udp_socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.target_ip = "192.168.1.131"
-        self.target_port = 5003
+        self.target_port = 5004  # Use different port for transmission
         
         # UDP reception setup (receive ready signal)
         self.udp_receiver = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.receiver_ip = "0.0.0.0"  # Receive from all interfaces
         self.receiver_port = 5003
+        self.udp_receiver.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow port reuse
         self.udp_receiver.bind((self.receiver_ip, self.receiver_port))
         
         # BUTTON_POSITION protocol setup (referencing psock structure)
@@ -197,7 +198,7 @@ class RealSenseYOLO3D:
         print("\n🎥 RealSense + YOLO + 3D coordinate calculation started!")
         print("🎯 Waiting for ready signal... (receiving on UDP port 5003)")
         print("🎯 Sequence: Ready signal → UP button → Ready signal → 7 button → Ready signal → UP button...")
-        print(f"📡 Transmission target: {self.target_ip}:{self.target_port}")
+        print(f"📡 Transmission target: {self.target_ip}:{self.target_port} (sending button positions)")
         print("\n⌨️  Keyboard input:")
         print("   'c' key: distortion correction toggle")
         print("   'm' key: 3D calculation matrix toggle (Color/Depth)")
