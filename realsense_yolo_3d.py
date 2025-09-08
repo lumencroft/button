@@ -162,7 +162,7 @@ class RealSenseYOLO3D:
             # Current time
             current_time = time.time()
             
-            # Create packet according to BUTTON_POSITION protocol (length = 24)
+            # Create packet according to BUTTON_POSITION protocol (total = 32 bytes)
             # Header: start_byte(4) + message_id(2) + length(2) = 8 bytes
             # Payload: time(8) + button_pos[3](12) + tooltip_pos[3](12) = 24 bytes
             # Total: 32 bytes (header 8 + payload 24)
@@ -171,7 +171,7 @@ class RealSenseYOLO3D:
                 "<4s2Hd6f",  # Format: 4s(start_byte) + 2H(message_id, length) + d(time) + 6f(button_pos + tooltip_pos)
                 self.start_byte.encode(),  # start_byte: 'POLA'
                 self.message_id,           # message_id: 102
-                self.length,               # length: 32
+                32,                        # length: 32 (fixed)
                 current_time,              # time: double
                 float(x_3d),               # button_pos[0]: float
                 float(y_3d),               # button_pos[1]: float  
