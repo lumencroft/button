@@ -59,7 +59,7 @@ class RealSenseYOLO3D:
         # BUTTON_POSITION protocol setup (referencing psock structure)
         self.start_byte = 'POLA'
         self.message_id = 102  # BUTTON_POSITION
-        self.length = 32  # Correct length as per current specification
+        self.length = 32  # Length field value
         
         # State management
         self.state = "waiting_ready"  # waiting_ready, looking_up, looking_7
@@ -162,10 +162,10 @@ class RealSenseYOLO3D:
             # Current time
             current_time = time.time()
             
-            # Create packet according to BUTTON_POSITION protocol (length = 32)
+            # Create packet according to BUTTON_POSITION protocol (length = 24)
             # Header: start_byte(4) + message_id(2) + length(2) = 8 bytes
-            # Payload: time(8) + button_pos[3](12) + tooltip_pos[3](12) = 32 bytes
-            # Total: 32 bytes
+            # Payload: time(8) + button_pos[3](12) + tooltip_pos[3](12) = 24 bytes
+            # Total: 32 bytes (header 8 + payload 24)
             
             message = struct.pack(
                 "<4s2Hd6f",  # Format: 4s(start_byte) + 2H(message_id, length) + d(time) + 6f(button_pos + tooltip_pos)
