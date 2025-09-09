@@ -44,6 +44,10 @@ class RealSenseYOLO3D:
         # Initialize coordinate calculator
         self.coord_calculator = None
         
+        # Set default settings
+        self.show_depth = False  # Depth visualization off by default
+        self.use_undistortion = False  # Distortion correction off by default
+        
         # UDP transmission setup
         self.udp_socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.target_ip = "192.168.1.131"
@@ -109,6 +113,9 @@ class RealSenseYOLO3D:
             
             # Initialize coordinate calculator
             self.coord_calculator = CoordinateCalculator(self.depth_scale)
+            
+            # Set default settings
+            self.coord_calculator.use_undistortion = self.use_undistortion
             
             return True
             
@@ -249,13 +256,7 @@ class RealSenseYOLO3D:
         print("🎯 Waiting for ready signal... (receiving on UDP port 5003)")
         print("🎯 Sequence: Ready signal → UP button → Ready signal → 7 button → Ready signal → UP button...")
         print(f"📡 Transmission target: {self.target_ip}:{self.target_port} (sending button positions)")
-        print("\n⌨️  Keyboard input:")
-        print("   'c' key: distortion correction toggle")
-        print("   'm' key: 3D calculation matrix toggle (Color/Depth)")
-        print("   '7' key: switch to 7 button detection")
-        print("   'u' key: switch to UP button detection")
-        print("   'r' key: reset state")
-        print("   ESC key: exit")
+        print(f"🔧 Settings: Depth visualization OFF, Distortion correction OFF")
         print("-" * 50)
         
         try:
@@ -274,14 +275,17 @@ class RealSenseYOLO3D:
                 color_image = np.asanyarray(color_frame.get_data())
                 depth_image = np.asanyarray(depth_frame.get_data())
                 
-                # Color image distortion correction
-                color_undistorted = self.coord_calculator.undistort_image(color_image, K_color, dist_coeffs_color)
+                # Color image distortion correction (only if enabled)
+                if self.coord_calculator.use_undistortion:
+                    color_undistorted = self.coord_calculator.undistort_image(color_image, K_color, dist_coeffs_color)
+                else:
+                    color_undistorted = color_image
                 
                 # YOLO inference
                 results = self.model(color_undistorted, verbose=False)
                 
-                # Result visualization
-                annotated_image = color_undistorted.copy()
+                # Result visualization (only if needed for processing)
+                # Note: No display windows will be shown
                 
                 # Determine target button based on state
                 target_class_id = None
@@ -314,28 +318,9 @@ class RealSenseYOLO3D:
                                 (x1, y1, x2, y2), depth_image, K_depth, dist_coeffs_depth, K_color, dist_coeffs_color
                             )
                             
-                            # Draw bounding box
-                            cv2.rectangle(annotated_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                            
-                            # Text information
+                            # Calculate center point for 3D coordinate calculation
                             center_x = (x1 + x2) // 2
                             center_y = (y1 + y2) // 2
-                            
-                            if x_3d is not None:
-                                # Debug information for depth value verification
-                                center_depth_raw = depth_image[center_y, center_x]
-                                center_depth_meters = center_depth_raw * self.depth_scale if self.depth_scale else center_depth_raw
-                                
-                                text = f"{class_name}: {confidence:.2f}"
-                                text_3d = f"3D: ({x_3d:.1f}, {y_3d:.1f}, {z_3d:.1f})mm"
-                                
-                                cv2.putText(annotated_image, text, (x1, y1-30), 
-                                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-                                cv2.putText(annotated_image, text_3d, (x1, y1-15), 
-                                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
-                                
-                                # Draw circle at center point
-                                cv2.circle(annotated_image, (center_x, center_y), 3, (0, 0, 255), -1)
                                 
                                 # Handle frame collection for target button
                                 if (target_class_id is not None and class_id == target_class_id and 
@@ -375,92 +360,28 @@ class RealSenseYOLO3D:
                                         self.frame_collection_mode = False
                                         self.collected_frames = []
                             else:
-                                text = f"{class_name}: {confidence:.2f} (No depth)"
-                                cv2.putText(annotated_image, text, (x1, y1-10), 
-                                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                                # No depth data available
+                                pass
                 
-                # Depth image visualization (colormap)
-                depth_colormap = cv2.applyColorMap(
-                    cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET
-                )
-                
-                # Display current state information on screen
+                # Print current state information to console
                 if self.state == "waiting_ready":
                     next_button = "UP" if self.current_sequence == "up" else "7"
-                    status_info = f"State: Waiting for ready signal... (Next: {next_button} button)"
-                    color = (0, 255, 255)  # Yellow
+                    print(f"State: Waiting for ready signal... (Next: {next_button} button)")
                 elif self.state == "looking_up":
                     if self.frame_collection_mode:
-                        status_info = f"State: Collecting UP button frames... ({len(self.collected_frames)}/{self.target_frames})"
+                        print(f"State: Collecting UP button frames... ({len(self.collected_frames)}/{self.target_frames})")
                     else:
-                        status_info = "State: Looking for UP button..."
-                    color = (0, 255, 0)    # Green
+                        print("State: Looking for UP button...")
                 elif self.state == "looking_7":
                     if self.frame_collection_mode:
-                        status_info = f"State: Collecting 7 button frames... ({len(self.collected_frames)}/{self.target_frames})"
+                        print(f"State: Collecting 7 button frames... ({len(self.collected_frames)}/{self.target_frames})")
                     else:
-                        status_info = "State: Looking for 7 button..."
-                    color = (255, 0, 0)    # Blue
+                        print("State: Looking for 7 button...")
                 else:
-                    status_info = f"State: {self.state}"
-                    color = (255, 255, 255)  # White
+                    print(f"State: {self.state}")
                 
-                cv2.putText(annotated_image, status_info, (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 3)  # Black outline
-                cv2.putText(annotated_image, status_info, (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-                
-                # Display distortion correction status
-                distortion_info = f"Distortion: {'ON' if self.coord_calculator.use_undistortion else 'OFF'}"
-                cv2.putText(annotated_image, distortion_info, (10, 60), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                cv2.putText(annotated_image, distortion_info, (10, 60), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0) if self.coord_calculator.use_undistortion else (0, 0, 255), 1)
-                
-                # Display 3D calculation matrix status
-                matrix_info = f"3D Matrix: {'Color' if self.coord_calculator.use_color_matrix_for_3d else 'Depth'}"
-                cv2.putText(annotated_image, matrix_info, (10, 90), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                cv2.putText(annotated_image, matrix_info, (10, 90), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0) if self.coord_calculator.use_color_matrix_for_3d else (255, 165, 0), 1)
-                
-                # Display on screen
-                cv2.imshow('RealSense + YOLO + 3D', annotated_image)
-                cv2.imshow('Depth', depth_colormap)
-                
-                # Keyboard input handling
-                key = cv2.waitKey(1) & 0xFF
-                
-                if key == 27:  # ESC
-                    break
-                elif key == ord('c'):  # 'c' key: distortion correction toggle
-                    self.coord_calculator.use_undistortion = not self.coord_calculator.use_undistortion
-                    status = "ON" if self.coord_calculator.use_undistortion else "OFF"
-                    print(f"\n🔧 Distortion correction toggle: {status}")
-                elif key == ord('m'):  # 'm' key: 3D calculation matrix toggle
-                    self.coord_calculator.use_color_matrix_for_3d = not self.coord_calculator.use_color_matrix_for_3d
-                    status = "Color" if self.coord_calculator.use_color_matrix_for_3d else "Depth"
-                    print(f"\n🎯 3D calculation matrix toggle: {status}")
-                elif key == ord('7'):  # '7' key: switch to 7 button detection
-                    self.state = "looking_7"
-                    self.button_7_sent = False
-                    self.current_sequence = "7"
-                    self.frame_collection_mode = True
-                    self.collected_frames = []
-                    print(f"\n🎯 Switched to 7 button detection mode (collecting 5 frames)")
-                elif key == ord('u'):  # 'u' key: switch to UP button detection
-                    self.state = "looking_up"
-                    self.up_button_sent = False
-                    self.current_sequence = "up"
-                    self.frame_collection_mode = True
-                    self.collected_frames = []
-                    print(f"\n🎯 Switched to UP button detection mode (collecting 5 frames)")
-                elif key == ord('r'):  # 'r' key: state reset
-                    self.state = "waiting_ready"
-                    self.up_button_sent = False
-                    self.button_7_sent = False
-                    self.current_sequence = "up"  # Reset to start with UP button
-                    print(f"\n🔄 State reset: Waiting for ready signal... (Next: UP button)")
+                # Small delay to prevent excessive CPU usage
+                time.sleep(0.01)
                     
         except KeyboardInterrupt:
             print("\nInterrupted by user.")
@@ -471,7 +392,6 @@ class RealSenseYOLO3D:
             self.pipeline.stop()
             self.udp_socket.close()
             self.udp_receiver.close()
-            cv2.destroyAllWindows()
             print("✅ Program terminated.")
 
 def main():
