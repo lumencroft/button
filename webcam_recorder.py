@@ -2,7 +2,7 @@
 """
 Webcam Recorder for NVIDIA Jetson
 Records webcam video with OpenCV, saves as MP4
-Press 's' to start/stop recording, ESC to exit
+Command line interface for recording control
 """
 
 import cv2
@@ -10,6 +10,8 @@ import numpy as np
 import os
 from datetime import datetime
 import time
+import threading
+import sys
 
 class WebcamRecorder:
     def __init__(self, camera_index=0, fps=30, resolution=(640, 480)):
@@ -28,6 +30,9 @@ class WebcamRecorder:
         self.writer = None
         self.recording = False
         self.output_filename = None
+        self.running = True
+        self.frame_count = 0
+        self.start_time = None
         
         # Create output directory if it doesn't exist
         self.output_dir = "recordings"
@@ -127,65 +132,48 @@ class WebcamRecorder:
         else:
             print("⚠️  Warning: Output file not found!")
     
-    def run(self):
-        """Main recording loop"""
+    def camera_loop(self):
+        """Camera processing loop (runs in background thread)"""
         if not self.initialize_camera():
             return
         
         print("\n🎥 Webcam Recorder Started!")
-        print("Controls:")
-        print("   's' key: Start/Stop recording")
-        print("   ESC key: Exit program")
-        print("-" * 40)
+        print("Camera is running in background...")
+        print("\nCommands:")
+        print("   'start' or 's': Start recording")
+        print("   'stop' or 'q': Stop recording")
+        print("   'status': Show current status")
+        print("   'exit': Exit program")
+        print("-" * 50)
         
-        frame_count = 0
-        start_time = time.time()
+        self.start_time = time.time()
         
         try:
-            while True:
+            while self.running:
                 ret, frame = self.cap.read()
                 if not ret:
                     print("❌ Failed to read frame from camera")
                     break
                 
-                # Add recording indicator
-                if self.recording:
-                    # Red circle indicator
-                    cv2.circle(frame, (30, 30), 10, (0, 0, 255), -1)
-                    cv2.putText(frame, "REC", (50, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                    
-                    # Write frame to video file
-                    if self.writer:
-                        self.writer.write(frame)
+                # Process frame for recording
+                if self.recording and self.writer:
+                    self.writer.write(frame)
                 
-                # Add frame counter and FPS
-                frame_count += 1
-                elapsed_time = time.time() - start_time
-                current_fps = frame_count / elapsed_time if elapsed_time > 0 else 0
+                # Update frame counter and FPS
+                self.frame_count += 1
+                elapsed_time = time.time() - self.start_time
+                current_fps = self.frame_count / elapsed_time if elapsed_time > 0 else 0
                 
-                # Display info on frame
-                info_text = f"FPS: {current_fps:.1f} | Frames: {frame_count}"
-                cv2.putText(frame, info_text, (10, frame.shape[0] - 20), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-                cv2.putText(frame, info_text, (10, frame.shape[0] - 20), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1)
+                # Print status every 5 seconds
+                if self.frame_count % 150 == 0:  # Assuming 30fps, so every 5 seconds
+                    status = "RECORDING" if self.recording else "IDLE"
+                    print(f"📊 Status: {status} | FPS: {current_fps:.1f} | Frames: {self.frame_count}")
                 
-                # Display frame
-                cv2.imshow('Webcam Recorder', frame)
+                # Small delay to prevent excessive CPU usage
+                time.sleep(0.01)
                 
-                # Handle keyboard input
-                key = cv2.waitKey(1) & 0xFF
-                
-                if key == 27:  # ESC key
-                    break
-                elif key == ord('s') or key == ord('S'):  # 's' key
-                    if self.recording:
-                        self.stop_recording()
-                    else:
-                        self.start_recording()
-                
-        except KeyboardInterrupt:
-            print("\n⚠️  Interrupted by user")
+        except Exception as e:
+            print(f"❌ Camera loop error: {e}")
         
         finally:
             # Cleanup
@@ -195,8 +183,76 @@ class WebcamRecorder:
             if self.cap:
                 self.cap.release()
             
-            cv2.destroyAllWindows()
-            print("✅ Program terminated")
+            print("✅ Camera loop terminated")
+    
+    def command_loop(self):
+        """Command line interface loop"""
+        while self.running:
+            try:
+                command = input("\n> ").strip().lower()
+                
+                if command in ['start', 's']:
+                    if not self.recording:
+                        self.start_recording()
+                    else:
+                        print("⚠️  Already recording!")
+                
+                elif command in ['stop', 'q']:
+                    if self.recording:
+                        self.stop_recording()
+                    else:
+                        print("⚠️  Not currently recording!")
+                
+                elif command == 'status':
+                    elapsed_time = time.time() - self.start_time if self.start_time else 0
+                    current_fps = self.frame_count / elapsed_time if elapsed_time > 0 else 0
+                    status = "RECORDING" if self.recording else "IDLE"
+                    print(f"📊 Current Status: {status}")
+                    print(f"📊 FPS: {current_fps:.1f}")
+                    print(f"📊 Total Frames: {self.frame_count}")
+                    if self.recording:
+                        print(f"📊 Recording: {self.output_filename}")
+                
+                elif command in ['exit', 'quit']:
+                    print("👋 Exiting program...")
+                    self.running = False
+                    break
+                
+                elif command == 'help':
+                    print("\nAvailable commands:")
+                    print("   start, s  - Start recording")
+                    print("   stop, q   - Stop recording")
+                    print("   status    - Show current status")
+                    print("   help      - Show this help")
+                    print("   exit      - Exit program")
+                
+                else:
+                    print("❌ Unknown command. Type 'help' for available commands.")
+                    
+            except KeyboardInterrupt:
+                print("\n👋 Exiting program...")
+                self.running = False
+                break
+            except EOFError:
+                print("\n👋 Exiting program...")
+                self.running = False
+                break
+    
+    def run(self):
+        """Main execution function"""
+        # Start camera loop in background thread
+        camera_thread = threading.Thread(target=self.camera_loop, daemon=True)
+        camera_thread.start()
+        
+        # Wait a moment for camera to initialize
+        time.sleep(2)
+        
+        # Start command line interface in main thread
+        self.command_loop()
+        
+        # Cleanup
+        self.running = False
+        print("✅ Program terminated")
 
 def main():
     """Main function"""
@@ -224,6 +280,9 @@ def main():
         print("1. Camera is connected and accessible")
         print("2. OpenCV is properly installed")
         print("3. For Jetson: GStreamer plugins are installed")
+    except KeyboardInterrupt:
+        print("\n👋 Program interrupted by user")
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()
