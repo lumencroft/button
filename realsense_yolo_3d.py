@@ -321,44 +321,44 @@ class RealSenseYOLO3D:
                             # Calculate center point for 3D coordinate calculation
                             center_x = (x1 + x2) // 2
                             center_y = (y1 + y2) // 2
+                            
+                            # Handle frame collection for target button
+                            if (target_class_id is not None and class_id == target_class_id and 
+                                self.frame_collection_mode and
+                                not (self.state == "looking_up" and self.up_button_sent) and
+                                not (self.state == "looking_7" and self.button_7_sent)):
                                 
-                                # Handle frame collection for target button
-                                if (target_class_id is not None and class_id == target_class_id and 
-                                    self.frame_collection_mode and
-                                    not (self.state == "looking_up" and self.up_button_sent) and
-                                    not (self.state == "looking_7" and self.button_7_sent)):
+                                # Collect frame data
+                                self.collected_frames.append((x_3d, y_3d, z_3d))
+                                print(f"📊 Frame {len(self.collected_frames)}/{self.target_frames} collected: ({x_3d:.1f}, {y_3d:.1f}, {z_3d:.1f})mm")
+                                
+                                # Check if we have enough frames
+                                if len(self.collected_frames) >= self.target_frames:
+                                    # Calculate averaged position
+                                    avg_pos = self.calculate_averaged_position(self.collected_frames)
                                     
-                                    # Collect frame data
-                                    self.collected_frames.append((x_3d, y_3d, z_3d))
-                                    print(f"📊 Frame {len(self.collected_frames)}/{self.target_frames} collected: ({x_3d:.1f}, {y_3d:.1f}, {z_3d:.1f})mm")
+                                    if avg_pos is not None:
+                                        avg_x, avg_y, avg_z = avg_pos
+                                        print(f"📊 Averaged position from {len(self.collected_frames)} frames: ({avg_x:.1f}, {avg_y:.1f}, {avg_z:.1f})mm")
+                                        
+                                        # Send averaged position
+                                        self.send_button_position(avg_x, avg_y, avg_z, target_class_name)
+                                        
+                                        # Update state
+                                        if self.state == "looking_up":
+                                            self.up_button_sent = True
+                                            self.state = "waiting_ready"
+                                            self.current_sequence = "7"  # Next time ready signal comes, look for 7 button
+                                            print("🎯 UP button transmission completed! Waiting for next ready signal to look for 7 button...")
+                                        elif self.state == "looking_7":
+                                            self.button_7_sent = True
+                                            self.state = "waiting_ready"
+                                            self.current_sequence = "up"  # Next time ready signal comes, look for up button
+                                            print("🎯 7 button transmission completed! Waiting for next ready signal to look for UP button...")
                                     
-                                    # Check if we have enough frames
-                                    if len(self.collected_frames) >= self.target_frames:
-                                        # Calculate averaged position
-                                        avg_pos = self.calculate_averaged_position(self.collected_frames)
-                                        
-                                        if avg_pos is not None:
-                                            avg_x, avg_y, avg_z = avg_pos
-                                            print(f"📊 Averaged position from {len(self.collected_frames)} frames: ({avg_x:.1f}, {avg_y:.1f}, {avg_z:.1f})mm")
-                                            
-                                            # Send averaged position
-                                            self.send_button_position(avg_x, avg_y, avg_z, target_class_name)
-                                            
-                                            # Update state
-                                            if self.state == "looking_up":
-                                                self.up_button_sent = True
-                                                self.state = "waiting_ready"
-                                                self.current_sequence = "7"  # Next time ready signal comes, look for 7 button
-                                                print("🎯 UP button transmission completed! Waiting for next ready signal to look for 7 button...")
-                                            elif self.state == "looking_7":
-                                                self.button_7_sent = True
-                                                self.state = "waiting_ready"
-                                                self.current_sequence = "up"  # Next time ready signal comes, look for up button
-                                                print("🎯 7 button transmission completed! Waiting for next ready signal to look for UP button...")
-                                        
-                                        # Reset frame collection
-                                        self.frame_collection_mode = False
-                                        self.collected_frames = []
+                                    # Reset frame collection
+                                    self.frame_collection_mode = False
+                                    self.collected_frames = []
                             else:
                                 # No depth data available
                                 pass
